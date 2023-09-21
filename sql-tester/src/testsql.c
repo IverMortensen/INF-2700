@@ -126,12 +126,15 @@ int prepare_test(char const *const test_dir,
 	spec = next_line(spec);
 
 	/* TODO: open testdb. return 0 upon failure */
-	if (!fopen(test_file_name, "r"))
-	{
-		printf("Can't open test file");
-		return 0;
-	}
-	printf("Can't open test file");
+	int rc = sqlite3_open(testdb_file_name, &db);
+
+	if (rc != SQLITE_OK) {
+        
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        
+        return 1;
+    }
 
 	char query_file_name[32];
 	if (!parse_spec_token("query_file: %s",
@@ -202,6 +205,15 @@ char const *get_query_str(char const *const query_name)
 	return query_p ? next_line(query_p) : 0;
 }
 
+int callback(void* NotUsed, int argc, char** argv, char** azColName) {
+	/* printf("arg1: %s\n", *argv); */
+	for (int i = 0; i < argc; i++) {
+		printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+	}
+	printf("\n");
+	return 0;
+}
+
 int query_exec(char const *const query_name,
 			   char *const query_res,
 			   const size_t res_len,
@@ -218,12 +230,47 @@ int query_exec(char const *const query_name,
 	}
 
 	size_t query_len = strstr(query_p, ";\n") - query_p + 1;
+	query_len += 0;
 
 	/* TODO: run the query
 	  - put the query result in query_res
 	  - if anything goes wrong (like "test not found" above),
 		return 0 with the error message in query_err
 	*/
+
+	/* int rc = sqlite3_exec(db, query_p, callback, 0, NULL);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "SQL error\n");
+	} */
+
+
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, query_p, -1, &stmt, 0);
+    
+    if (rc != SQLITE_OK) {
+        
+        fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        
+        return 1;
+    }
+
+	int res_size = 0;
+	int column_count = sqlite3_column_count(stmt);
+	while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+
+		for (int i = 0; i < column_count; i++) {
+			const char* text = (const char*)sqlite3_column_text(stmt, i);
+			size_t textLength = strlen(text) + 4;
+
+			snprintf(query_res + res_size, textLength, "|%s|\n", text);
+			res_size += textLength - 1;
+		}
+	}
+    
+    sqlite3_finalize(stmt);
+	/* printf("%s\n", &query_res[10]); */
 
 	return 1;
 }
@@ -268,6 +315,7 @@ void terminate_test()
 {
 
 	/* TODO: close db */
+    sqlite3_close(db);
 
 	if (spec_buff)
 	{
