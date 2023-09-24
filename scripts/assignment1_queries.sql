@@ -9,29 +9,29 @@
 
 ---- Task 2 -----
 
-SELECT customerName, contactLastName, contactFirstName
-FROM Customers;
+-- SELECT customerName, contactLastName, contactFirstName
+-- FROM Customers;
 
-SELECT *
-FROM Orders
-WHERE shippedDate IS NULL;
+-- SELECT *
+-- FROM Orders
+-- WHERE shippedDate IS NULL;
 
-SELECT C.customerName AS Customer, SUM(OD.quantityOrdered) AS Total
-FROM Orders O, Customers C, OrderDetails OD
-WHERE O.customerNumber = C.customerNumber
-AND O.orderNumber = OD.orderNumber
-GROUP BY O.customerNumber
-ORDER BY Total DESC;
+-- SELECT C.customerName AS Customer, SUM(OD.quantityOrdered) AS Total
+-- FROM Orders O, Customers C, OrderDetails OD
+-- WHERE O.customerNumber = C.customerNumber
+-- AND O.orderNumber = OD.orderNumber
+-- GROUP BY O.customerNumber
+-- ORDER BY Total DESC;
 
-SELECT P.productName, T.totalQuantityOrdered
-FROM Products P NATURAL JOIN
-(SELECT productCode, SUM(quantityOrdered) AS totalQuantityOrdered
-FROM OrderDetails GROUP BY productCode) AS T
-WHERE T.totalQuantityOrdered >= 1000;
+-- SELECT P.productName, T.totalQuantityOrdered
+-- FROM Products P NATURAL JOIN
+-- (SELECT productCode, SUM(quantityOrdered) AS totalQuantityOrdered
+-- FROM OrderDetails GROUP BY productCode) AS T
+-- WHERE T.totalQuantityOrdered >= 1000;
 
-SELECT DISTINCT productName, productVendor
-FROM   Products
-LIMIT  6;
+-- SELECT DISTINCT productName, productVendor
+-- FROM   Products
+-- LIMIT  6;
 
 
 ---- Task 3 ----
@@ -107,4 +107,3 @@ WHERE C.customerNumber IN
 		)
 	)
 ORDER BY C.customerName;
-
