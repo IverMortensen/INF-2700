@@ -597,6 +597,21 @@ int get_record(record r, schema_p s) {
 static int int_equal(int x, int y) {
   return x == y;
 }
+static int int_less(int x, int y) {
+  return x < y;
+}
+static int int_less_equal(int x, int y) {
+  return x <= y;
+}
+static int int_greater(int x, int y) {
+  return x > y;
+}
+static int int_greater_equal(int x, int y) {
+  return x >= y;
+}
+static int int_not_equal(int x, int y) {
+  return x != y;
+}
 
 static int find_record_int_val(record r, schema_p s, int offset,
                                int (*op) (int, int), int val) {
@@ -728,6 +743,21 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
 
   if (strcmp(op, "=") == 0)
     cmp_op = int_equal;
+
+  if (strcmp(op, "<") == 0)
+    cmp_op = int_less;
+
+  if (strcmp(op, "<=") == 0)
+    cmp_op = int_less_equal;
+
+  if (strcmp(op, ">") == 0)
+    cmp_op = int_greater;
+
+  if (strcmp(op, ">=") == 0)
+    cmp_op = int_greater_equal;
+
+  if (strcmp(op, "!=") == 0)
+    cmp_op = int_not_equal;
 
   if (!cmp_op) {
     put_msg(ERROR, "unknown comparison operator \"%s\".\n", op);
