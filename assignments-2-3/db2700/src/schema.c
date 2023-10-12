@@ -598,16 +598,16 @@ static int int_equal(int x, int y) {
   return x == y;
 }
 static int int_less(int x, int y) {
-  return x < y;
-}
-static int int_less_equal(int x, int y) {
-  return x <= y;
-}
-static int int_greater(int x, int y) {
   return x > y;
 }
-static int int_greater_equal(int x, int y) {
+static int int_less_equal(int x, int y) {
   return x >= y;
+}
+static int int_greater(int x, int y) {
+  return x < y;
+}
+static int int_greater_equal(int x, int y) {
+  return x <= y;
 }
 static int int_not_equal(int x, int y) {
   return x != y;
@@ -781,6 +781,8 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
   char *tmp_name = tmp_schema_name("select", s->name);
   schema_p res_sch = copy_schema(s, tmp_name);
   free(tmp_name);
+
+  /*  */
 
   record rec = new_record(s);
 

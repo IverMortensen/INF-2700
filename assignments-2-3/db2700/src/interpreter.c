@@ -736,14 +736,40 @@ static void make_table()
         put_msg(ERROR, "create table: missing table name.\n");
         return;
     }
-    
+
     schema_p sch = get_schema(tableName);
 
-    if (sch) {
+    if (sch)
+    {
         put_msg(ERROR, "Table \"%s\" already exists.\n", tableName);
-    return;
+        return;
     }
-    printf("Make a table\n");
+    
+    sch = new_schema(tableName);
+    printf("Made table %s\n", tableName);
+
+    add_field(sch, new_int_field("Number"));
+    add_field(sch, new_int_field("Limit"));
+
+    int vals[] = {10, 20, 30, 40, 50, 60};
+    int length = sizeof(vals) / sizeof(int);
+
+    for (int i = 0; i < length; i++) {
+        record rec = new_record(sch);
+
+        assign_int_field(rec[0], vals[i]);
+
+        if (i == 0) {
+            assign_int_field(rec[1], 40);
+        }
+
+        if (rec)
+        {
+            append_record(rec, sch);
+            release_record(rec, sch);
+        }
+    }
+
 }
 
 void interpret(int argc, char *argv[])
