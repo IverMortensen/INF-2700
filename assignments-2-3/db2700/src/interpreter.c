@@ -748,20 +748,17 @@ static void make_table()
     sch = new_schema(tableName);
     printf("Made table %s\n", tableName);
 
-    add_field(sch, new_int_field("Number"));
-    add_field(sch, new_int_field("Limit"));
+    add_field(sch, new_int_field("Numbers1"));
+    add_field(sch, new_int_field("Numbers2"));
 
-    int vals[] = {10, 20, 30, 40, 50, 60};
-    int length = sizeof(vals) / sizeof(int);
+    int length = 126;
 
-    for (int i = 0; i < length; i++) {
+    for (int i = 1; i < length; i++) {
         record rec = new_record(sch);
 
-        assign_int_field(rec[0], vals[i]);
+        assign_int_field(rec[0], i * 2);
 
-        if (i == 0) {
-            assign_int_field(rec[1], 40);
-        }
+		assign_int_field(rec[1], i*2*2);
 
         if (rec)
         {
@@ -769,6 +766,12 @@ static void make_table()
             release_record(rec, sch);
         }
     }
+
+	tbl_p table = table_search(get_table(tableName),
+								"Numbers1",
+								"=",
+								4);
+	table_display(table);
 
 }
 

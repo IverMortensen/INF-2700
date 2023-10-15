@@ -735,14 +735,61 @@ void table_display(tbl_p t) {
   release_record(rec, s);
 }
 
+int get_value_at_idx(int idx, schema_p s, int *pos, int offset) {
+  int rec_size = s->num_fields * 4;
+  int rec_per_blk = 123 / s->num_fields;
+  int blk_nr = idx / (rec_per_blk);
+  int rec_pos = ((idx % rec_per_blk) * rec_size) + 20;
+  *pos = rec_pos;
+
+  page_p page = get_page(s->name, blk_nr);
+  s->tbl->current_pg = page;
+
+  return page_get_int_at(page, rec_pos + offset);
+}
+
+int binarySearch(record r, schema_p s, int offset, int val) {
+  int start = 0;
+  int end = s->tbl->num_records - 1;
+  int pos;
+
+  while (start <= end) {
+    int middle = (start + end) / 2;
+		printf("Middle: %d, Start: %d, End %d\n", middle, start, end);
+		int curr_val = get_value_at_idx(middle, s, &pos, offset);
+ 
+    if (val == curr_val) {
+			printf("Success!\n");
+			page_set_current_pos(s->tbl->current_pg, pos);
+			get_page_record(s->tbl->current_pg, r, s);
+			return 1;
+		}
+ 
+    else if (val < curr_val) {
+			printf("Bellow %d\n", curr_val);
+            end = middle - 1;
+		}
+
+    else if (val > curr_val) {
+			printf("Above %d\n", curr_val);
+            start = middle + 1;
+		}
+  }
+
+    return 0;
+}
+
 /* We restrict ourselves to equality search on an int attribute */
 tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
   if (!t) return 0;
+  int doBinarySearch = 0;
 
   int (*cmp_op)() = 0;
 
-  if (strcmp(op, "=") == 0)
+  if (strcmp(op, "=") == 0) {
     cmp_op = int_equal;
+	  doBinarySearch = 1;
+  }
 
   if (strcmp(op, "<") == 0)
     cmp_op = int_less;
@@ -764,7 +811,6 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
     return 0;
   }
 
-
   schema_p s = t->sch;
   field_desc_p f;
   size_t i = 0;
@@ -782,15 +828,23 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
   schema_p res_sch = copy_schema(s, tmp_name);
   free(tmp_name);
 
-  /*  */
-
   record rec = new_record(s);
 
-  set_tbl_position(t, TBL_BEG);
-  while (find_record_int_val(rec, s, f->offset, cmp_op, val)) {
-    put_record_info(DEBUG, rec, s);
-    append_record(rec, res_sch);
+  pager_profiler_reset();
+
+  if (doBinarySearch) {
+    set_tbl_position(t, TBL_BEG);
+	  if (binarySearch(rec, s, f->offset, val))
+      append_record(rec, res_sch);
   }
+  else {
+    set_tbl_position(t, TBL_BEG);
+    while (find_record_int_val(rec, s, f->offset, cmp_op, val)) {
+      put_record_info(DEBUG, rec, s);
+      append_record(rec, res_sch);
+    }
+  }
+  put_pager_profiler_info(INFO); 
 
   release_record(rec, s);
 
