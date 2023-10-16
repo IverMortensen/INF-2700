@@ -735,11 +735,14 @@ void table_display(tbl_p t) {
   release_record(rec, s);
 }
 
+/* Returns value at an index in schema.
+   Offset detemins the field.
+   Stores the values page position in pos. */
 int get_value_at_idx(int idx, schema_p s, int *pos, int offset) {
-  int rec_size = s->num_fields * 4;
-  int rec_per_blk = 123 / s->num_fields;
+  int rec_size = s->num_fields * sizeof(int);
+  int rec_per_blk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / rec_size;
   int blk_nr = idx / (rec_per_blk);
-  int rec_pos = ((idx % rec_per_blk) * rec_size) + 20;
+  int rec_pos = ((idx % rec_per_blk) * rec_size) + PAGE_HEADER_SIZE;
   *pos = rec_pos;
 
   page_p page = get_page(s->name, blk_nr);
@@ -753,27 +756,25 @@ int binarySearch(record r, schema_p s, int offset, int val) {
   int end = s->tbl->num_records - 1;
   int pos;
 
+  /* Binary search loop */
   while (start <= end) {
     int middle = (start + end) / 2;
-		printf("Middle: %d, Start: %d, End %d\n", middle, start, end);
-		int curr_val = get_value_at_idx(middle, s, &pos, offset);
+		int middle_val = get_value_at_idx(middle, s, &pos, offset);
  
-    if (val == curr_val) {
-			printf("Success!\n");
+    /* Check if middle value is equal to target value */
+    if (val == middle_val) {
 			page_set_current_pos(s->tbl->current_pg, pos);
 			get_page_record(s->tbl->current_pg, r, s);
 			return 1;
 		}
- 
-    else if (val < curr_val) {
-			printf("Bellow %d\n", curr_val);
-            end = middle - 1;
-		}
 
-    else if (val > curr_val) {
-			printf("Above %d\n", curr_val);
-            start = middle + 1;
-		}
+    /* Limit search bellow middle */
+    else if (val < middle_val)
+      end = middle - 1;
+
+    /* Limit search above middle */
+    else if (val > middle_val)
+      start = middle + 1;
   }
 
     return 0;
@@ -790,7 +791,6 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
     cmp_op = int_equal;
 	  doBinarySearch = 1;
   }
-
   if (strcmp(op, "<") == 0)
     cmp_op = int_less;
 
@@ -832,13 +832,19 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
 
   pager_profiler_reset();
 
+  set_tbl_position(t, TBL_BEG);
+
+  /* doBinarySearch = 0; */
+
+  /* If equal operand do binary search
+     else do linear search */
   if (doBinarySearch) {
-    set_tbl_position(t, TBL_BEG);
+    printf("\nBinary search:\n");
 	  if (binarySearch(rec, s, f->offset, val))
       append_record(rec, res_sch);
   }
   else {
-    set_tbl_position(t, TBL_BEG);
+    printf("\nLinear search:\n");
     while (find_record_int_val(rec, s, f->offset, cmp_op, val)) {
       put_record_info(DEBUG, rec, s);
       append_record(rec, res_sch);

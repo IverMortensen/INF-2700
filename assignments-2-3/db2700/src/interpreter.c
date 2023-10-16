@@ -284,7 +284,8 @@ static void show_help_info()
     printf(" - create table table_name ( field_name field_type, ... )\n");
     printf(" - drop table table_name (CAUTION: data will be deleted!!!)\n");
     printf(" - insert into table_name values ( value_1, value_2, ... )\n");
-    printf(" - select attr1, attr2 from table_name where attr = int_val;\n\n");
+    printf(" - select attr1, attr2 from table_name where attr = int_val;\n");
+    printf(" - make table_name\n\n");
 }
 
 static void quit()
@@ -746,13 +747,15 @@ static void make_table()
     }
     
     sch = new_schema(tableName);
-    printf("Made table %s\n", tableName);
+    printf("Made table \"%s\"\n", tableName);
 
+	/* Create fields*/
     add_field(sch, new_int_field("Numbers1"));
     add_field(sch, new_int_field("Numbers2"));
 
-    int length = 126;
+    int length = 100000; // Number of records in database
 
+	/* Insert records */
     for (int i = 1; i < length; i++) {
         record rec = new_record(sch);
 
@@ -767,12 +770,12 @@ static void make_table()
         }
     }
 
+	/* Tests a select on the new table */
 	tbl_p table = table_search(get_table(tableName),
 								"Numbers1",
 								"=",
-								4);
+								222);
 	table_display(table);
-
 }
 
 void interpret(int argc, char *argv[])
