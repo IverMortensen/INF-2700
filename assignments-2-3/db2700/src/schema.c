@@ -41,6 +41,7 @@ typedef struct tbl_desc_struct {
   tbl_p next;        /**< next tbl_desc in the database. */
 } tbl_desc_struct;
 
+int testBinarySearch = 0;
 
 /** @brief Database tables*/
 tbl_p db_tables; /**< a linked list of table descriptors */
@@ -830,27 +831,34 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
 
   record rec = new_record(s);
 
-  /* pager_profiler_reset(); */
-
   set_tbl_position(t, TBL_BEG);
 
-  doBinarySearch = 0;
+  if (testBinarySearch) {
+    pager_profiler_reset();
 
-  /* If equal operand do binary search
-     else do linear search */
-  if (doBinarySearch) {
-    /* printf("\nBinary search:\n"); */
+    /* If equal operand do binary search
+       else do linear search */
+    if (doBinarySearch) {
+      printf("\nBinary search:\n");
       if (binarySearch(rec, s, f->offset, val))
-      append_record(rec, res_sch);
+        append_record(rec, res_sch);
+    }
+    else {
+      printf("\nLinear search:\n");
+      while (find_record_int_val(rec, s, f->offset, cmp_op, val)) {
+        put_record_info(DEBUG, rec, s);
+        append_record(rec, res_sch);
+      }
+    }
+    put_pager_profiler_info(INFO); 
   }
   else {
-    /* printf("\nLinear search:\n"); */
     while (find_record_int_val(rec, s, f->offset, cmp_op, val)) {
-      put_record_info(DEBUG, rec, s);
-      append_record(rec, res_sch);
+    put_record_info(DEBUG, rec, s);
+    append_record(rec, res_sch);
     }
   }
-  /* put_pager_profiler_info(INFO);  */
+
 
   release_record(rec, s);
 
@@ -938,6 +946,7 @@ tbl_p table_block_natural_join(tbl_p left, tbl_p right) {
   
   schema_p sch = new_schema("blockJoin");
   tbl_p res = sch->tbl;
+  printf("Created joined table: \"%s\"\n", "blockJoin");
 
   int leftNumBlks = file_num_blocks(left->sch->name);
   int rightNumBlks = file_num_blocks(right->sch->name);
@@ -1001,6 +1010,7 @@ tbl_p table_natural_join(tbl_p left, tbl_p right) {
   
   schema_p sch = new_schema("nestedJoin");
   tbl_p res = sch->tbl;
+  printf("Created joined table: \"%s\"\n", "nestedJoin");
 
   int leftNumBlks = file_num_blocks(left->sch->name);
   int rightNumBlks = file_num_blocks(right->sch->name);

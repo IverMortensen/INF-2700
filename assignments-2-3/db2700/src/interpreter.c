@@ -32,6 +32,7 @@ static const char *const t_select = "select";
 static const char *const t_quit = "quit";
 static const char *const t_help = "help";
 static const char *const t_int = "int";
+static const char *const t_make = "make";
 static const char *const t_test = "test";
 
 static FILE *in_s; /* input stream, default to stdin */
@@ -286,6 +287,7 @@ static void show_help_info()
     printf(" - drop table table_name (CAUTION: data will be deleted!!!)\n");
     printf(" - insert into table_name values ( value_1, value_2, ... )\n");
     printf(" - select attr1, attr2 from table_name where attr = int_val;\n");
+    printf(" - make table_name\n");
     printf(" - test\n\n");
 }
 
@@ -729,6 +731,56 @@ static void select_rows()
     release_select_desc(slct);
 }
 
+static void make_table()
+{
+    char tableName[MAX_TOKEN_LEN];
+
+    if (!next_token(tableName))
+    {
+        put_msg(ERROR, "create table: missing table name.\n");
+        return;
+    }
+
+    schema_p sch = get_schema(tableName);
+
+    if (sch)
+    {
+        put_msg(ERROR, "Table \"%s\" already exists.\n", tableName);
+        return;
+    }
+    
+    sch = new_schema(tableName);
+    printf("Made table \"%s\"\n", tableName);
+
+	/* Create fields*/
+    add_field(sch, new_int_field("Numbers1"));
+    add_field(sch, new_int_field("Numbers2"));
+
+    int length = 100000; // Number of records in database
+
+	/* Insert records */
+    for (int i = 1; i < length; i++) {
+        record rec = new_record(sch);
+
+        assign_int_field(rec[0], i * 2);
+
+		assign_int_field(rec[1], i*2*2);
+
+        if (rec)
+        {
+            append_record(rec, sch);
+            release_record(rec, sch);
+        }
+    }
+
+	/* Tests a select on the new table */
+	tbl_p table = table_search(get_table(tableName),
+								"Numbers1",
+								"=",
+								222);
+	table_display(table);
+}
+
 static void test_natural_join()
 {
     char *leftTableName = "left";
@@ -792,12 +844,12 @@ static void test_natural_join()
         }
     }
 
-	printf("\nTesting Natrual-join on %d records...\n", num_names);
+	printf("\n--- Testing Natrual-join with %d records ---\n", num_names);
 	pager_profiler_reset();
 	tbl_p table1 = table_natural_join(get_table(leftTableName), get_table(rightTableName));
 	put_pager_profiler_info(INFO);
 
-	printf("\nTesting Block Natrual-join on %d records...\n", num_names);
+	printf("\n--- Testing Block Natrual-join with %d records ---\n", num_names);
 	pager_profiler_reset();
 	tbl_p table2 = table_block_natural_join(get_table(leftTableName), get_table(rightTableName));
 	put_pager_profiler_info(INFO);
@@ -854,6 +906,9 @@ void interpret(int argc, char *argv[])
             select_rows();
             continue; }
 
+        if (strcmp(token, t_make) == 0) {
+            make_table();
+            continue; }
         if (strcmp(token, t_test) == 0) {
             test_natural_join();
             continue; }
