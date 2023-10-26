@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include "names.h"
 
 #define MAX_LINE_WIDTH 512
 #define MAX_TOKEN_LEN 32
@@ -730,52 +731,88 @@ static void select_rows()
 
 static void make_table()
 {
-    char tableName[MAX_TOKEN_LEN];
+    char leftTableName[MAX_TOKEN_LEN];
+    char rightTableName[MAX_TOKEN_LEN];
 
-    if (!next_token(tableName))
-    {
+	/* Get table names */
+    if (!next_token(leftTableName)) {
+        put_msg(ERROR, "create table: missing table name.\n");
+        return;
+    }
+    if (!next_token(rightTableName)) {
         put_msg(ERROR, "create table: missing table name.\n");
         return;
     }
 
-    schema_p sch = get_schema(tableName);
+    schema_p leftSch = get_schema(leftTableName);
+    schema_p rightSch = get_schema(rightTableName);
 
-    if (sch)
-    {
-        put_msg(ERROR, "Table \"%s\" already exists.\n", tableName);
+    if (leftSch) {
+        put_msg(ERROR, "Table \"%s\" already exists.\n", leftTableName);
+        return;
+    }
+    if (rightSch) {
+        put_msg(ERROR, "Table \"%s\" already exists.\n", leftTableName);
         return;
     }
     
-    sch = new_schema(tableName);
-    printf("Made table \"%s\"\n", tableName);
+    printf("Made tables \"%s\" and \"%s\"\n", leftTableName, rightTableName);
 
-	/* Create fields*/
-    add_field(sch, new_int_field("Numbers1"));
-    add_field(sch, new_int_field("Numbers2"));
+    int length = num_names; // Number of records in tables
 
-    int length = 100000; // Number of records in database
+	/* Create left table */
+    leftSch = new_schema(leftTableName);
+
+	/* Create fields */
+    add_field(leftSch, new_int_field("id"));
+    add_field(leftSch, new_str_field("FirstName", 16));
 
 	/* Insert records */
-    for (int i = 1; i < length; i++) {
-        record rec = new_record(sch);
+    for (int i = 0; i < length; i++) {
+        record rec = new_record(leftSch);
 
-        assign_int_field(rec[0], i * 2);
-
-		assign_int_field(rec[1], i*2*2);
+        assign_int_field(rec[0], i);
+		assign_str_field(rec[1], first_names[i]);
 
         if (rec)
         {
-            append_record(rec, sch);
-            release_record(rec, sch);
+            append_record(rec, leftSch);
+            release_record(rec, leftSch);
+        }
+    }
+
+	/* Create right table */
+    rightSch = new_schema(rightTableName);
+
+	/* Create fields*/
+    add_field(rightSch, new_int_field("id"));
+    add_field(rightSch, new_str_field("LastName", 16));
+
+	/* Insert records */
+    for (int i = 0; i < length; i++) {
+        record rec = new_record(rightSch);
+
+        assign_int_field(rec[0], i);
+		assign_str_field(rec[1], last_names[i]);
+
+        if (rec)
+        {
+            append_record(rec, rightSch);
+            release_record(rec, rightSch);
         }
     }
 
 	/* Tests a select on the new table */
-	tbl_p table = table_search(get_table(tableName),
+	/* tbl_p table = table_search(get_table(leftTableName),
 								"Numbers1",
 								"=",
 								222);
-	table_display(table);
+	table_display(table); */
+
+	tbl_p table = table_natural_join(get_table(leftTableName), get_table(rightTableName));
+	
+	/* table_display(table); */
+
 }
 
 void interpret(int argc, char *argv[])

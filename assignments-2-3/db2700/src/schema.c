@@ -759,14 +759,14 @@ int binarySearch(record r, schema_p s, int offset, int val) {
   /* Binary search loop */
   while (start <= end) {
     int middle = (start + end) / 2;
-		int middle_val = get_value_at_idx(middle, s, &pos, offset);
+        int middle_val = get_value_at_idx(middle, s, &pos, offset);
  
     /* Check if middle value is equal to target value */
     if (val == middle_val) {
-			page_set_current_pos(s->tbl->current_pg, pos);
-			get_page_record(s->tbl->current_pg, r, s);
-			return 1;
-		}
+            page_set_current_pos(s->tbl->current_pg, pos);
+            get_page_record(s->tbl->current_pg, r, s);
+            return 1;
+        }
 
     /* Limit search bellow middle */
     else if (val < middle_val)
@@ -789,7 +789,7 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
 
   if (strcmp(op, "=") == 0) {
     cmp_op = int_equal;
-	  doBinarySearch = 1;
+      doBinarySearch = 1;
   }
   if (strcmp(op, "<") == 0)
     cmp_op = int_less;
@@ -830,27 +830,27 @@ tbl_p table_search(tbl_p t, char const* attr, char const* op, int val) {
 
   record rec = new_record(s);
 
-  pager_profiler_reset();
+  /* pager_profiler_reset(); */
 
   set_tbl_position(t, TBL_BEG);
 
-  /* doBinarySearch = 0; */
+  doBinarySearch = 0;
 
   /* If equal operand do binary search
      else do linear search */
   if (doBinarySearch) {
-    printf("\nBinary search:\n");
-	  if (binarySearch(rec, s, f->offset, val))
+    /* printf("\nBinary search:\n"); */
+      if (binarySearch(rec, s, f->offset, val))
       append_record(rec, res_sch);
   }
   else {
-    printf("\nLinear search:\n");
+    /* printf("\nLinear search:\n"); */
     while (find_record_int_val(rec, s, f->offset, cmp_op, val)) {
       put_record_info(DEBUG, rec, s);
       append_record(rec, res_sch);
     }
   }
-  put_pager_profiler_info(INFO); 
+  /* put_pager_profiler_info(INFO);  */
 
   release_record(rec, s);
 
@@ -877,15 +877,125 @@ tbl_p table_project(tbl_p t, int num_fields, char* fields[]) {
   return dest->tbl;
 }
 
+int idx_to_pos(int idx, int rec_size) {
+  /* int rec_per_blk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / rec_size; */
+  int pos = ((idx) * rec_size) + PAGE_HEADER_SIZE;
+  return pos;
+}
+
+int idx_to_record(int idx, record rec, int rec_size, page_p page, schema_p s) {
+  page_set_current_pos(page, idx_to_pos(idx, rec_size));
+  if(peof(page)) {
+    return 0;
+  }
+  get_page_record(page, rec, s);
+  return 1;
+}
+
+void natural_join_fields(schema_p schLeft, schema_p schRight, schema_p schRes) {
+    /* Add all left fields */
+  for (field_desc_p leftField = schLeft->first; leftField; leftField = leftField->next) {
+    if (leftField->type == INT_TYPE)
+      add_field(schRes, new_int_field(leftField->name));
+    if (leftField->type == STR_TYPE)
+      add_field(schRes, new_str_field(leftField->name, strlen(leftField->name)));
+  }
+
+  /* Add unique right fields */
+  for (field_desc_p rightField = schRight->first; rightField; rightField = rightField->next) {
+    int different = 1;
+
+    for (field_desc_p resField = schRes->first; resField; resField = resField->next) {
+      if (!strncmp(resField->name, rightField->name, rightField->len))
+        different = 0;
+      }
+
+    if (different) {
+      if (rightField->type == INT_TYPE)
+        add_field(schRes, new_int_field(rightField->name));
+      if (rightField->type == STR_TYPE)
+        add_field(schRes, new_str_field(rightField->name, rightField->len));
+    }
+  }
+}
+
 tbl_p table_natural_join(tbl_p left, tbl_p right) {
   if (!(left && right)) {
     put_msg(ERROR, "no table found!\n");
     return 0;
   }
+  
+  schema_p sch = new_schema("join");
+  tbl_p res = sch->tbl;
 
-  tbl_p res = 0;
+  int leftNumBlks = file_num_blocks(left->sch->name);
+  int rightNumBlks = file_num_blocks(right->sch->name);
+  int leftRecPerBlk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / left->sch->len;
+  int rightRecPerBlk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / right->sch->len;
 
-  /* TODO: assignment 3 */
+  /* Create the fields for the result table */
+  natural_join_fields(left->sch, right->sch, res->sch);
+  int commonField = 0;
 
+  int leftEndCounter = 0;
+  int leftEnd = 0;
+  int rightEndCounter = 0;
+  int rightEnd = 0;
+
+  /* Get left page */
+  for (int blkL = 0; blkL < leftNumBlks; blkL++) {
+    page_p pageL = get_page(left->sch->name, blkL);
+    /* Get right page */
+    for (int blkR = 0; blkR < rightNumBlks; blkR++) {
+      page_p pageR = get_page(right->sch->name, blkR);
+
+      /* Get left record */
+      for (int idxRecL = 0; idxRecL < leftRecPerBlk; idxRecL++) {
+        record recL = new_record(left->sch);
+        if (idx_to_record(idxRecL, recL, left->sch->len, pageL, left->sch) == 0) {
+          printf("Left end of file: [%d, %d]\n", blkL, idxRecL);
+          printf("Pos: [%d, %d]\n", page_block_nr(pageL),page_current_pos(pageL));
+          break;
+        }
+
+        /* Get right record */
+        for (int idxRecR = 0; idxRecR < rightRecPerBlk; idxRecR++) {
+          record recR = new_record(right->sch);
+          if (idx_to_record(idxRecR, recR, right->sch->len, pageR, right->sch) == 0){
+            break;
+          }
+
+          // Create and append reccords
+          /* printf("%d %d Comparing %d and %d\n", idxRecL, idxRecR, *(int *)recL[commonField], *(int *)recR[commonField]); */
+          printf("[%d, %d] [%d, %d]\n", blkL, idxRecL, blkR, idxRecR);
+          if (*(int *)recL[commonField] == *(int *)recR[commonField]) {
+            /* printf("Match found: %d %s, %d %s\n", *(int *)recL[commonField], (char *)recL[1], *(int *)recR[commonField], (char *)recR[1]); */
+            record recRes = new_record(res->sch);
+
+            assign_int_field(recRes[0], *(int *)recL[0]);
+            assign_str_field(recRes[1], (char *)recL[1]);
+            assign_str_field(recRes[2], (char *)recR[1]);
+
+            append_record(recRes, res->sch);
+            release_record(recRes, res->sch);
+          }
+          release_record(recR, right->sch);
+
+          rightEndCounter++;
+          if (rightEndCounter >= right->num_records) {
+            rightEnd = 0;
+          }
+        }
+
+        release_record(recL, left->sch);
+        leftEndCounter++;
+        if (leftEndCounter >= left->num_records) {
+          leftEnd = 0;
+        }
+      }
+    }
+  }
+  
+  printf("Finished!\n");
   return res;
 }
