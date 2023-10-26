@@ -885,31 +885,42 @@ int idx_to_pos(int idx, int rec_size) {
 
 int idx_to_record(int idx, record rec, int rec_size, page_p page, schema_p s) {
   page_set_current_pos(page, idx_to_pos(idx, rec_size));
-  if(peof(page)) {
-    return 0;
-  }
+
+  /* Check if last record of table */
+  if (peof(page))
+    return OUT_OF_RECORDS;
+
   get_page_record(page, rec, s);
   return 1;
 }
 
-void natural_join_fields(schema_p schLeft, schema_p schRight, schema_p schRes) {
+void natural_join_fields(schema_p schLeft, schema_p schRight, schema_p schRes, int *leftOffset, int *rightOffset) {
     /* Add all left fields */
   for (field_desc_p leftField = schLeft->first; leftField; leftField = leftField->next) {
     if (leftField->type == INT_TYPE)
       add_field(schRes, new_int_field(leftField->name));
     if (leftField->type == STR_TYPE)
-      add_field(schRes, new_str_field(leftField->name, strlen(leftField->name)));
+      add_field(schRes, new_str_field(leftField->name, leftField->len));
   }
 
+  int leftIdx = 0, rightIdx = 0;
   /* Add unique right fields */
   for (field_desc_p rightField = schRight->first; rightField; rightField = rightField->next) {
     int different = 1;
 
+    /* Compare right field with all added left fields */
     for (field_desc_p resField = schRes->first; resField; resField = resField->next) {
-      if (!strncmp(resField->name, rightField->name, rightField->len))
+      if (!strncmp(resField->name, rightField->name, rightField->len)) {
         different = 0;
+        *leftOffset = leftIdx;
+        *rightOffset = rightIdx;
       }
+      leftIdx++;
+    }
+    leftIdx = 0;
+    rightIdx++;
 
+    /* Add field if its different */
     if (different) {
       if (rightField->type == INT_TYPE)
         add_field(schRes, new_int_field(rightField->name));
@@ -919,28 +930,23 @@ void natural_join_fields(schema_p schLeft, schema_p schRight, schema_p schRes) {
   }
 }
 
-tbl_p table_natural_join(tbl_p left, tbl_p right) {
+tbl_p table_block_natural_join(tbl_p left, tbl_p right) {
   if (!(left && right)) {
     put_msg(ERROR, "no table found!\n");
     return 0;
   }
   
-  schema_p sch = new_schema("join");
+  schema_p sch = new_schema("blockJoin");
   tbl_p res = sch->tbl;
 
   int leftNumBlks = file_num_blocks(left->sch->name);
   int rightNumBlks = file_num_blocks(right->sch->name);
   int leftRecPerBlk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / left->sch->len;
   int rightRecPerBlk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / right->sch->len;
+  int leftOffset, rightOffset;
 
   /* Create the fields for the result table */
-  natural_join_fields(left->sch, right->sch, res->sch);
-  int commonField = 0;
-
-  int leftEndCounter = 0;
-  int leftEnd = 0;
-  int rightEndCounter = 0;
-  int rightEnd = 0;
+  natural_join_fields(left->sch, right->sch, res->sch, &leftOffset, &rightOffset);
 
   /* Get left page */
   for (int blkL = 0; blkL < leftNumBlks; blkL++) {
@@ -952,24 +958,19 @@ tbl_p table_natural_join(tbl_p left, tbl_p right) {
       /* Get left record */
       for (int idxRecL = 0; idxRecL < leftRecPerBlk; idxRecL++) {
         record recL = new_record(left->sch);
-        if (idx_to_record(idxRecL, recL, left->sch->len, pageL, left->sch) == 0) {
-          printf("Left end of file: [%d, %d]\n", blkL, idxRecL);
-          printf("Pos: [%d, %d]\n", page_block_nr(pageL),page_current_pos(pageL));
+        if (idx_to_record(idxRecL, recL, left->sch->len, pageL, left->sch) == OUT_OF_RECORDS) {
           break;
         }
 
         /* Get right record */
         for (int idxRecR = 0; idxRecR < rightRecPerBlk; idxRecR++) {
           record recR = new_record(right->sch);
-          if (idx_to_record(idxRecR, recR, right->sch->len, pageR, right->sch) == 0){
+          if (idx_to_record(idxRecR, recR, right->sch->len, pageR, right->sch) == OUT_OF_RECORDS){
             break;
           }
 
           // Create and append reccords
-          /* printf("%d %d Comparing %d and %d\n", idxRecL, idxRecR, *(int *)recL[commonField], *(int *)recR[commonField]); */
-          printf("[%d, %d] [%d, %d]\n", blkL, idxRecL, blkR, idxRecR);
-          if (*(int *)recL[commonField] == *(int *)recR[commonField]) {
-            /* printf("Match found: %d %s, %d %s\n", *(int *)recL[commonField], (char *)recL[1], *(int *)recR[commonField], (char *)recR[1]); */
+          if (*(int *)recL[leftOffset] == *(int *)recR[rightOffset]) {
             record recRes = new_record(res->sch);
 
             assign_int_field(recRes[0], *(int *)recL[0]);
@@ -980,22 +981,78 @@ tbl_p table_natural_join(tbl_p left, tbl_p right) {
             release_record(recRes, res->sch);
           }
           release_record(recR, right->sch);
-
-          rightEndCounter++;
-          if (rightEndCounter >= right->num_records) {
-            rightEnd = 0;
-          }
         }
 
         release_record(recL, left->sch);
-        leftEndCounter++;
-        if (leftEndCounter >= left->num_records) {
-          leftEnd = 0;
-        }
       }
+      unpin(pageR);
     }
+    unpin(pageL);
   }
   
-  printf("Finished!\n");
+  return res;
+}
+
+tbl_p table_natural_join(tbl_p left, tbl_p right) {
+  if (!(left && right)) {
+    put_msg(ERROR, "no table found!\n");
+    return 0;
+  }
+  
+  schema_p sch = new_schema("nestedJoin");
+  tbl_p res = sch->tbl;
+
+  int leftNumBlks = file_num_blocks(left->sch->name);
+  int rightNumBlks = file_num_blocks(right->sch->name);
+  int leftRecPerBlk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / left->sch->len;
+  int rightRecPerBlk = (BLOCK_SIZE - PAGE_HEADER_SIZE) / right->sch->len;
+  int leftOffset, rightOffset;
+
+  /* Create the fields for the result table */
+  natural_join_fields(left->sch, right->sch, res->sch, &leftOffset, &rightOffset);
+
+  /* Get left page */
+  for (int blkL = 0; blkL < leftNumBlks; blkL++) {
+    page_p pageL = get_page(left->sch->name, blkL);
+
+    /* Get left record */
+    for (int idxRecL = 0; idxRecL < leftRecPerBlk; idxRecL++) {
+      record recL = new_record(left->sch);
+      if (idx_to_record(idxRecL, recL, left->sch->len, pageL, left->sch) == OUT_OF_RECORDS) {
+        break;
+      }
+      /* Get right page */
+      for (int blkR = 0; blkR < rightNumBlks; blkR++) {
+        page_p pageR = get_page(right->sch->name, blkR);
+
+        /* Get right record */
+        for (int idxRecR = 0; idxRecR < rightRecPerBlk; idxRecR++) {
+          record recR = new_record(right->sch);
+          if (idx_to_record(idxRecR, recR, right->sch->len, pageR, right->sch) == OUT_OF_RECORDS){
+            break;
+          }
+
+          // Create and append reccords
+          if (*(int *)recL[leftOffset] == *(int *)recR[rightOffset]) {
+            record recRes = new_record(res->sch);
+
+            assign_int_field(recRes[0], *(int *)recL[0]);
+            assign_str_field(recRes[1], (char *)recL[1]);
+            assign_str_field(recRes[2], (char *)recR[1]);
+
+            append_record(recRes, res->sch);
+            release_record(recRes, res->sch);
+          }
+          release_record(recR, right->sch);
+        }
+
+        unpin(pageR);
+      }
+      release_record(recL, left->sch);
+    }
+
+    unpin(pageL);
+  }
+  
   return res;
 }

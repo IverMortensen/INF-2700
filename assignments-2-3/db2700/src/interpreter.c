@@ -32,7 +32,7 @@ static const char *const t_select = "select";
 static const char *const t_quit = "quit";
 static const char *const t_help = "help";
 static const char *const t_int = "int";
-static const char *const t_make = "make";
+static const char *const t_test = "test";
 
 static FILE *in_s; /* input stream, default to stdin */
 
@@ -286,7 +286,7 @@ static void show_help_info()
     printf(" - drop table table_name (CAUTION: data will be deleted!!!)\n");
     printf(" - insert into table_name values ( value_1, value_2, ... )\n");
     printf(" - select attr1, attr2 from table_name where attr = int_val;\n");
-    printf(" - make table_name\n\n");
+    printf(" - test\n\n");
 }
 
 static void quit()
@@ -692,7 +692,7 @@ static void select_rows()
 
     if (slct->right_tbl)
     {
-        join_tbl = table_natural_join(slct->from_tbl, slct->right_tbl);
+        join_tbl = table_block_natural_join(slct->from_tbl, slct->right_tbl);
         if (!join_tbl)
         {
             release_select_desc(slct);
@@ -729,20 +729,10 @@ static void select_rows()
     release_select_desc(slct);
 }
 
-static void make_table()
+static void test_natural_join()
 {
-    char leftTableName[MAX_TOKEN_LEN];
-    char rightTableName[MAX_TOKEN_LEN];
-
-	/* Get table names */
-    if (!next_token(leftTableName)) {
-        put_msg(ERROR, "create table: missing table name.\n");
-        return;
-    }
-    if (!next_token(rightTableName)) {
-        put_msg(ERROR, "create table: missing table name.\n");
-        return;
-    }
+    char *leftTableName = "left";
+    char *rightTableName = "right";
 
     schema_p leftSch = get_schema(leftTableName);
     schema_p rightSch = get_schema(rightTableName);
@@ -802,17 +792,23 @@ static void make_table()
         }
     }
 
-	/* Tests a select on the new table */
-	/* tbl_p table = table_search(get_table(leftTableName),
-								"Numbers1",
-								"=",
-								222);
-	table_display(table); */
+	printf("\nTesting Natrual-join on %d records...\n", num_names);
+	pager_profiler_reset();
+	tbl_p table1 = table_natural_join(get_table(leftTableName), get_table(rightTableName));
+	put_pager_profiler_info(INFO);
 
-	tbl_p table = table_natural_join(get_table(leftTableName), get_table(rightTableName));
+	printf("\nTesting Block Natrual-join on %d records...\n", num_names);
+	pager_profiler_reset();
+	tbl_p table2 = table_block_natural_join(get_table(leftTableName), get_table(rightTableName));
+	put_pager_profiler_info(INFO);
 	
-	/* table_display(table); */
+	/* Display the joined tables */
+	// table_display(table1);
+	// table_display(table2);
 
+	/* Supresses unused variable warning */
+	table1 = 0; 
+	table2 = 0;
 }
 
 void interpret(int argc, char *argv[])
@@ -858,8 +854,8 @@ void interpret(int argc, char *argv[])
             select_rows();
             continue; }
 
-        if (strcmp(token, t_make) == 0) {
-            make_table();
+        if (strcmp(token, t_test) == 0) {
+            test_natural_join();
             continue; }
 
         error_near(token);

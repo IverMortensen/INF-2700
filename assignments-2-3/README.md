@@ -1,11 +1,16 @@
+# How to run the program
 Compile and run program while in assignments-2-3/db2700/:
-	$ make cleanall; make; ./run_front
 
-While in the program:
-	$ help
-		- Shows availeble commands
-	$ make {tableName}
-		- Creates a table with the name and fills it with values
+	make cleanall; make; ./run_front
+
+## Commands in the program
+Show availeble commands:
+
+	help
+
+To test Natural-join and Block Natural-join:
+
+	test
 
 To change the table that is made with make "tableName",
 go to make_table() function in interpreter.c:731.

@@ -46,6 +46,8 @@
 
 #define MAX_STR_LEN 100
 
+#define OUT_OF_RECORDS 0
+
 typedef enum {INT_TYPE, STR_TYPE} field_type;
 typedef enum {TBL_BEG, TBL_END} tbl_position;
 
@@ -164,5 +166,6 @@ extern tbl_p table_search(tbl_p t, char const* attr,
 /** Make a new table as a result of project. */
 extern tbl_p table_project(tbl_p t, int num_fields, char* fields[]);
 /** Join two tables and return the joined table. */
+extern tbl_p table_block_natural_join(tbl_p left, tbl_p right);
 extern tbl_p table_natural_join(tbl_p left, tbl_p right);
 #endif

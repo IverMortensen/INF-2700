@@ -73,7 +73,7 @@ void test_tbl_read(char const* tbl_name) {
   close_db();
   /* put_pager_info(DEBUG, "After close_db"); */
 
-  put_msg(INFO,  "test_tbl_read() succeeds.\n");
+  put_msg(INFO,  "test_tbl_read() succeeds.\n\n");
 
 }
 
@@ -87,12 +87,23 @@ void test_tbl_natural_join(char const* my_tbl, char const* yr_tbl) {
   tbl_p tbl_m = get_table(my_tbl);
   tbl_p tbl_y = get_table(yr_tbl);
 
+  printf("-- Testing Nested-loop --\n");
+  pager_profiler_reset();
   table_natural_join(tbl_m, tbl_y);
+  put_pager_profiler_info(INFO);
+  printf("\n");
+
+  printf("-- Testing Block Nested-loop --\n");
+  pager_profiler_reset();
+  table_block_natural_join(tbl_m, tbl_y);
+  put_pager_profiler_info(INFO);
+  printf("\n");
+
 
   put_db_info(DEBUG);
   close_db();
   /* put_pager_info(DEBUG, "After close_db"); */
 
-  put_pager_profiler_info(INFO);
+  /* put_pager_profiler_info(INFO); */
   put_msg(INFO,  "test_tbl_natural_join() done.\n\n");
 }
