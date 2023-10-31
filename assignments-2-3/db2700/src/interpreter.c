@@ -844,16 +844,19 @@ static void test_natural_join()
         }
     }
 
-	printf("\n--- Testing Natrual-join with %d records ---\n", num_names);
+	printf("\n\n");
+
+	printf("\n--- Testing Nested-join with %d records ---\n", num_names);
 	pager_profiler_reset();
 	tbl_p table1 = table_natural_join(get_table(leftTableName), get_table(rightTableName));
 	put_pager_profiler_info(INFO);
 
-	printf("\n--- Testing Block Natrual-join with %d records ---\n", num_names);
+	printf("\n--- Testing Block Nested-join with %d records ---\n", num_names);
 	pager_profiler_reset();
 	tbl_p table2 = table_block_natural_join(get_table(leftTableName), get_table(rightTableName));
 	put_pager_profiler_info(INFO);
 	
+	printf("\n\n");
 	/* Display the joined tables */
 	// table_display(table1);
 	// table_display(table2);
